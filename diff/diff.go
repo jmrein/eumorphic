@@ -1,21 +1,21 @@
 package diff
 
 import (
+    "eumorphic/diff/lineview"
+    "eumorphic/diff/richtext"
+    "fmt"
     "github.com/mattn/go-gtk/gtk"
     "gopkg.in/src-d/go-git.v4"
     "gopkg.in/src-d/go-git.v4/plumbing"
+    "gopkg.in/src-d/go-git.v4/plumbing/format/diff"
     "gopkg.in/src-d/go-git.v4/plumbing/object"
+    "strings"
 )
 
 type Diff struct {
-    *gtk.ScrolledWindow
-    text *gtk.TextView
-    styles map[string]*gtk.TextTag
-}
-
-func (d *Diff) add_style(name string, props map[string]interface{}) {
-    props["family"] = "Monospace"
-    d.styles[name] = d.text.GetBuffer().CreateTag(name, props)
+    *gtk.HBox
+    text *richtext.RichText
+    line *lineview.LineView
 }
 
 func (d *Diff) Update(repo *git.Repository, hash string) {
@@ -31,29 +31,62 @@ func (d *Diff) Update(repo *git.Repository, hash string) {
         return
     }
 
-    buffer := d.text.GetBuffer()
-    var start, end gtk.TextIter
-    buffer.GetStartIter(&start)
-    buffer.GetEndIter(&end)
-    buffer.Delete(&start, &end)
-    //buffer.GetStartIter(&start)
-    buffer.InsertWithTag(&start, patch.String(), d.styles["normal"])
+    d.text.Clear()
+    for _, fp := range patch.FilePatches() {
+        from, to := fp.Files()
+        if from != nil && to != nil  {
+            if from.Path() != to.Path() {
+                d.text.Append("file", fmt.Sprintf("~ %s => %s", from.Path(), to.Path()))
+            } else {
+                d.text.Append("file", "~ " + from.Path())
+            }
+        } else if from != nil {
+            d.text.Append("file", "- " + from.Path())
+        } else if to != nil {
+            d.text.Append("file", "+ " + to.Path())
+        } else {
+            d.text.Append("file", "???");
+        }
+        d.line.Add(0, 0)
+        var ( oldline, newline = 0, 0 )
+        for _, chunk := range fp.Chunks() {
+            style := "normal"
+            for _, l := range strings.Split(chunk.Content(), "\n") {
+                switch chunk.Type() {
+                    case diff.Add:
+                        style = "insert"
+                        newline++
+                        d.line.Add(0, newline)
+                    case diff.Delete:
+                        style = "delete"
+                        oldline++
+                        d.line.Add(oldline, 0)
+                    default:
+                        oldline++
+                        newline++
+                        d.line.Add(oldline, newline)
+                }
+                d.text.Append(style, l)
+            }
+        }
+    }
+    d.line.Display()
 }
 
 func New() *Diff {
-    scroll := gtk.NewScrolledWindow(nil, nil)
-    scroll.SetPolicy(gtk.POLICY_AUTOMATIC, gtk.POLICY_AUTOMATIC)
-    text := gtk.NewTextView()
-    text.SetEditable(false)
-    scroll.Add(text)
+    hbox := gtk.NewHBox(false, 0)
+    line := lineview.New()
+    text := richtext.New()
+    text.AddStyle("normal")
+    text.AddStyle("file",   "background", "#d9d9d9")
+    text.AddStyle("insert", "background", "#aaffaa")
+    text.AddStyle("delete", "background", "#ffaaaa")
+    hbox.PackStart(line, false, false, 0)
+    hbox.PackEnd(text, true, true, 0)
     diff := &Diff {
-        scroll,
+        hbox,
         text,
-        make(map[string]*gtk.TextTag),
+        line,
     }
-    diff.add_style("normal", map[string]interface{}{})
-    diff.add_style("file",   map[string]interface{}{"background": "#d9d9d9"})
-    diff.add_style("insert", map[string]interface{}{"background": "#aaffaa"})
-    diff.add_style("delete", map[string]interface{}{"background": "#ffaaaa"})
     return diff
 }

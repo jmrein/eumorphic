@@ -28,10 +28,9 @@ func add_col(tree *gtk.TreeView, column int, title string, width int) *gtk.TreeV
 }
 
 type History struct {
-    *gtk.ScrolledWindow
+    *gtk.TreeView
     repo  *git.Repository
     store *gtk.ListStore
-    tree  *gtk.TreeView
 }
 
 func (h *History) add_special(key string, label string) {
@@ -74,9 +73,9 @@ func (h *History) Refresh() error {
 }
 
 func (h *History) SelectionChanged(onchanged func(r *git.Repository, hash string)) {
-    h.tree.Connect("cursor_changed", func() {
+    h.Connect("cursor_changed", func() {
         var iter gtk.TreeIter
-        if h.tree.GetSelection().GetSelected(&iter) {
+        if h.GetSelection().GetSelected(&iter) {
             var value glib.GValue
             h.store.GetValue(&iter, Hash, &value)
             onchanged(h.repo, value.GetString())
@@ -85,17 +84,14 @@ func (h *History) SelectionChanged(onchanged func(r *git.Repository, hash string
 }
 
 func New(repo *git.Repository) *History {
-    scroll := gtk.NewScrolledWindow(nil, nil)
-    scroll.SetPolicy(gtk.POLICY_NEVER, gtk.POLICY_AUTOMATIC)
     store  := gtk.NewListStore(glib.G_TYPE_STRING, glib.G_TYPE_STRING, glib.G_TYPE_STRING,
         glib.G_TYPE_STRING, glib.G_TYPE_STRING)
     tree := gtk.NewTreeView()
-    scroll.Add(tree)
     tree.SetModel(store)
     add_col(tree, Commit, "Commit", 0)
     add_col(tree, Subject, "Subject", 500).SetExpand(true)
     add_col(tree, Author, "Author", 300)
     add_col(tree, Date, "Date", 0)
-    return &History { scroll, repo, store, tree }
+    return &History { tree, repo, store }
 }
 
