@@ -18,7 +18,7 @@ type Diff struct {
     line *lineview.LineView
 }
 
-func (d *Diff) Update(repo *git.Repository, hash string) {
+func (d *Diff) Update(repo *git.Repository, hash string, file string, file_encountered func(key string)) {
     var parent *object.Commit
     var ctree, ptree *object.Tree
     var patch *object.Patch
@@ -34,19 +34,25 @@ func (d *Diff) Update(repo *git.Repository, hash string) {
     d.text.Clear()
     for _, fp := range patch.FilePatches() {
         from, to := fp.Files()
+        file_key := ""
         if from != nil && to != nil  {
             if from.Path() != to.Path() {
-                d.text.Append("file", fmt.Sprintf("~ %s => %s", from.Path(), to.Path()))
+                file_key = fmt.Sprintf("~ %s => %s", from.Path(), to.Path())
             } else {
-                d.text.Append("file", "~ " + from.Path())
+                file_key = "~ " + from.Path()
             }
         } else if from != nil {
-            d.text.Append("file", "- " + from.Path())
+            file_key = "- " + from.Path()
         } else if to != nil {
-            d.text.Append("file", "+ " + to.Path())
+            file_key = "+ " + to.Path()
         } else {
-            d.text.Append("file", "???");
+            file_key = "???";
         }
+        if file != "" && file != file_key {
+            continue
+        }
+        d.text.Append("file", file_key)
+        file_encountered(file_key)
         d.line.Add(0, 0)
         var ( oldline, newline = 0, 0 )
         for _, chunk := range fp.Chunks() {
