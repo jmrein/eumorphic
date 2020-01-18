@@ -2,8 +2,9 @@ package main
 
 import (
 	"eumorphic/diffview"
+	"eumorphic/filelist"
 	"eumorphic/history"
-	"eumorphic/list"
+	"fmt"
 	"os"
 	"github.com/mattn/go-gtk/gtk"
 	"gopkg.in/libgit2/git2go.v24"
@@ -31,7 +32,7 @@ func main() {
 	vbox.Add(scroll)
 
 	hbox := gtk.NewHBox(false, 0)
-	files := list.New()
+	files := filelist.New()
 	files.SetSizeRequest(250, 150)
 	scroll = gtk.NewScrolledWindow(nil, nil)
 	scroll.SetPolicy(gtk.POLICY_AUTOMATIC, gtk.POLICY_AUTOMATIC)
@@ -47,11 +48,18 @@ func main() {
 	window.Add(vbox)
 	window.ShowAll()
 	hist.SelectionChanged(func(h string) {
-		files.Clear()
-		diff.Update(repo, h, "", func(key string) { files.Add(key) })
+		deltas, err := diff.Update(repo, h, nil)
+		if err == nil {
+			files.Clear()
+			for _, d := range deltas {
+				files.Add(d)
+			}
+		} else {
+			fmt.Println(err)
+		}
 	})
-	files.SelectionChanged(func(k string) {
-		diff.Update(repo, hist.GetSelected(history.Hash), k, func(key string) {})
+	files.SelectionChanged(func(o, n string) {
+		diff.Update(repo, hist.GetSelected(history.Hash), []string{o, n})
 	})
 	gtk.Main()
 }

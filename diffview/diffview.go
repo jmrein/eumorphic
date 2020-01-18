@@ -3,7 +3,6 @@ package diffview
 import (
 	"eumorphic/diffview/lineview"
 	"eumorphic/diffview/richtext"
-	"fmt"
 
 	"github.com/mattn/go-gtk/gtk"
 	git "gopkg.in/libgit2/git2go.v24"
@@ -41,13 +40,13 @@ func getHead(repo *git.Repository) (*git.Tree, error) {
 	return object.AsTree()
 }
 
-func getDiff(repo *git.Repository, hash string, file string) (*git.Diff, error) {
+func getDiff(repo *git.Repository, hash string, files []string) (*git.Diff, error) {
 	options, err := git.DefaultDiffOptions()
 	if err != nil {
 		return nil, err
 	}
-	if file != "" {
-		options.Pathspec = []string{file}
+	if files != nil {
+		options.Pathspec = files
 	}
 	switch hash {
 	case ":working:":
@@ -78,11 +77,18 @@ hash - the focus commit hash, or a special string
     :working: will compare the working directory to the staged directory
     :staged: will compare the staged version to head
 file - if not blank, show only this file*/
-func (d *DiffView) Update(repo *git.Repository, hash string, file string, fileEncountered func(key string)) {
-	diff, err := getDiff(repo, hash, file)
+func (d *DiffView) Update(repo *git.Repository, hash string, files []string) ([]git.DiffDelta, error) {
+	diff, err := getDiff(repo, hash, files)
 	if err != nil {
-		fmt.Println(err)
-		return
+		return nil, err
+	}
+	options, err := git.DefaultDiffFindOptions()
+	if err != nil {
+		return nil, err
+	}
+	err = diff.FindSimilar(&options)
+	if err != nil {
+		return nil, err
 	}
 	styles := map[git.DiffLineType]string{
 		git.DiffLineAddition: "insert",
@@ -92,8 +98,13 @@ func (d *DiffView) Update(repo *git.Repository, hash string, file string, fileEn
 	}
 
 	d.text.Clear()
+	deltas := make([]git.DiffDelta, 0)
 	diff.ForEach(func(file git.DiffDelta, progress float64) (git.DiffForEachHunkCallback, error) {
-		fileEncountered(file.NewFile.Path)
+		deltas = append(deltas, file)
+		//fmt.Printf("%s => %s (%d)\n", file.OldFile.Path, file.NewFile.Path, file.Status)
+		if file.OldFile.Path != file.NewFile.Path {
+			d.text.Append("file", file.OldFile.Path+" => ")
+		}
 		d.text.Append("file", file.NewFile.Path+"\n")
 		d.line.Add(0, 0)
 		return func(hunk git.DiffHunk) (git.DiffForEachLineCallback, error) {
@@ -111,6 +122,7 @@ func (d *DiffView) Update(repo *git.Repository, hash string, file string, fileEn
 		}, nil
 	}, git.DiffDetailLines)
 	d.line.Display()
+	return deltas, nil
 }
 
 //New returns a DiffView
