@@ -29,9 +29,9 @@ func getTree(repo *git.Repository, hash string) (*git.Commit, *git.Tree, error) 
 }
 
 func getHead(repo *git.Repository) (*git.Tree, error) {
-	head, err := repo.Head()
-	if err != nil {
-		return nil, err
+	head, _ := repo.Head()
+	if head == nil {
+		return nil, nil
 	}
 	object, err := head.Peel(git.ObjectTree)
 	if err != nil {
@@ -40,7 +40,11 @@ func getHead(repo *git.Repository) (*git.Tree, error) {
 	return object.AsTree()
 }
 
-func getDiff(repo *git.Repository, hash string, files []string) (*git.Diff, error) {
+/*GetDiff calculates a diff between <hash> and its parent
+if files is non-empty, use as a pathspec
+hash can be :working: (to get differences between working and staged)
+or :staged: (to get differences between staged and head)*/
+func GetDiff(repo *git.Repository, hash string, files []string) (*git.Diff, error) {
 	options, err := git.DefaultDiffOptions()
 	if err != nil {
 		return nil, err
@@ -78,7 +82,7 @@ hash - the focus commit hash, or a special string
     :staged: will compare the staged version to head
 file - if not blank, show only this file*/
 func (d *DiffView) Update(repo *git.Repository, hash string, files []string) ([]git.DiffDelta, error) {
-	diff, err := getDiff(repo, hash, files)
+	diff, err := GetDiff(repo, hash, files)
 	if err != nil {
 		return nil, err
 	}
@@ -101,7 +105,6 @@ func (d *DiffView) Update(repo *git.Repository, hash string, files []string) ([]
 	deltas := make([]git.DiffDelta, 0)
 	diff.ForEach(func(file git.DiffDelta, progress float64) (git.DiffForEachHunkCallback, error) {
 		deltas = append(deltas, file)
-		//fmt.Printf("%s => %s (%d)\n", file.OldFile.Path, file.NewFile.Path, file.Status)
 		if file.OldFile.Path != file.NewFile.Path {
 			d.text.Append("file", file.OldFile.Path+" => ")
 		}

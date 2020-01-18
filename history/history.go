@@ -1,6 +1,7 @@
 package history
 
 import (
+	"eumorphic/diffview"
 	"eumorphic/listview"
 	"fmt"
 	"strings"
@@ -38,11 +39,27 @@ func (h *History) add(c *git.Commit) bool {
 	return true
 }
 
+func countChanges(repo *git.Repository, hash string) int {
+	diff, err := diffview.GetDiff(repo, hash, make([]string, 0))
+	if err != nil {
+		return 0
+	}
+	nDeltas, err := diff.NumDeltas()
+	if err != nil {
+		return 0
+	}
+	return nDeltas
+}
+
 //Refresh refreshes the display
 func (h *History) Refresh(repo *git.Repository) {
 	h.Clear()
-	h.AddRow(map[int]string{Hash: ":working:", Subject: "(Working directory)"})
-	h.AddRow(map[int]string{Hash: ":staged:", Subject: "(Staged)"})
+	if countChanges(repo, ":working:") > 0 {
+		h.AddRow(map[int]string{Hash: ":working:", Subject: "(Working directory)"})
+	}
+	if countChanges(repo, ":staged:") > 0 {
+		h.AddRow(map[int]string{Hash: ":staged:", Subject: "(Staged)"})
+	}
 	walk, err := repo.Walk()
 	if err == nil {
 		walk.Sorting(git.SortTime)
