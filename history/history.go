@@ -3,10 +3,12 @@ package history
 import (
 	"eumorphic/listview"
 	"fmt"
-	"gopkg.in/libgit2/git2go.v24"
 	"strings"
+
+	git "gopkg.in/libgit2/git2go.v24"
 )
 
+//Values stored in the list store
 const (
 	Hash = iota
 	Commit
@@ -17,6 +19,7 @@ const (
 	NumCols
 )
 
+//History displays the git history
 type History struct {
 	*listview.ListView
 }
@@ -35,6 +38,7 @@ func (h *History) add(c *git.Commit) bool {
 	return true
 }
 
+//Refresh refreshes the display
 func (h *History) Refresh(repo *git.Repository) {
 	h.Clear()
 	h.AddRow(map[int]string{Hash: ":working:", Subject: "(Working directory)"})
@@ -52,10 +56,12 @@ func (h *History) Refresh(repo *git.Repository) {
 	}
 }
 
+//SelectionChanged adds a listener for the selected commit
 func (h *History) SelectionChanged(onchanged func(hash string)) {
 	h.Connect("cursor_changed", func() { onchanged(h.GetSelected(Hash)) })
 }
 
+//New returns a new history viewer
 func New() *History {
 	tree := listview.New(NumCols)
 	tree.AddCol(Commit, "Commit", 0)

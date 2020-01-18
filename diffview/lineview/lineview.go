@@ -1,11 +1,12 @@
 package lineview
 
 import (
-	"eumorphic/diff/richtext"
+	"eumorphic/diffview/richtext"
 	"fmt"
 	"strconv"
 )
 
+//LineView displays line numbers
 type LineView struct {
 	*richtext.RichText
 	oldlines []string
@@ -13,6 +14,7 @@ type LineView struct {
 	max      int
 }
 
+//Add to the displayed lines
 func (lv *LineView) Add(oldline int, newline int) {
 	var (
 		o, n = "", ""
@@ -33,6 +35,7 @@ func (lv *LineView) Add(oldline int, newline int) {
 	}
 }
 
+//Display refreshes the line display
 func (lv *LineView) Display() {
 	lv.Clear()
 	padding := strconv.Itoa(lv.max)
@@ -46,6 +49,7 @@ func (lv *LineView) Display() {
 	lv.newlines = make([]string, 0, 1000)
 }
 
+//New returns a new line display
 func New() *LineView {
 	text := richtext.New()
 	text.SetCanDefault(false)

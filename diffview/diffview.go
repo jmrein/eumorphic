@@ -1,20 +1,22 @@
-package diff
+package diffview
 
 import (
-	"eumorphic/diff/lineview"
-	"eumorphic/diff/richtext"
+	"eumorphic/diffview/lineview"
+	"eumorphic/diffview/richtext"
 	"fmt"
+
 	"github.com/mattn/go-gtk/gtk"
-	"gopkg.in/libgit2/git2go.v24"
+	git "gopkg.in/libgit2/git2go.v24"
 )
 
-type Diff struct {
+//DiffView displays the diff for a commit to its parent
+type DiffView struct {
 	*gtk.HBox
 	text *richtext.RichText
 	line *lineview.LineView
 }
 
-func get_tree(repo *git.Repository, hash string) (*git.Commit, *git.Tree, error) {
+func getTree(repo *git.Repository, hash string) (*git.Commit, *git.Tree, error) {
 	oid, err := git.NewOid(hash)
 	if err != nil {
 		return nil, nil, err
@@ -27,7 +29,7 @@ func get_tree(repo *git.Repository, hash string) (*git.Commit, *git.Tree, error)
 	return commit, tree, err
 }
 
-func get_head(repo *git.Repository) (*git.Tree, error) {
+func getHead(repo *git.Repository) (*git.Tree, error) {
 	head, err := repo.Head()
 	if err != nil {
 		return nil, err
@@ -39,7 +41,7 @@ func get_head(repo *git.Repository) (*git.Tree, error) {
 	return object.AsTree()
 }
 
-func get_diff(repo *git.Repository, hash string, file string) (*git.Diff, error) {
+func getDiff(repo *git.Repository, hash string, file string) (*git.Diff, error) {
 	options, err := git.DefaultDiffOptions()
 	if err != nil {
 		return nil, err
@@ -51,13 +53,13 @@ func get_diff(repo *git.Repository, hash string, file string) (*git.Diff, error)
 	case ":working:":
 		return repo.DiffIndexToWorkdir(nil, &options)
 	case ":staged:":
-		tree, err := get_head(repo)
+		tree, err := getHead(repo)
 		if err != nil {
 			return nil, err
 		}
 		return repo.DiffTreeToIndex(tree, nil, &options)
 	}
-	commit, tree, err := get_tree(repo, hash)
+	commit, tree, err := getTree(repo, hash)
 	if err != nil {
 		return nil, err
 	}
@@ -71,8 +73,13 @@ func get_diff(repo *git.Repository, hash string, file string) (*git.Diff, error)
 	return repo.DiffTreeToTree(parent, tree, &options)
 }
 
-func (d *Diff) Update(repo *git.Repository, hash string, file string, file_encountered func(key string)) {
-	diff, err := get_diff(repo, hash, file)
+/*Update shows the diff for a commit to its parent
+hash - the focus commit hash, or a special string
+    :working: will compare the working directory to the staged directory
+    :staged: will compare the staged version to head
+file - if not blank, show only this file*/
+func (d *DiffView) Update(repo *git.Repository, hash string, file string, fileEncountered func(key string)) {
+	diff, err := getDiff(repo, hash, file)
 	if err != nil {
 		fmt.Println(err)
 		return
@@ -86,7 +93,7 @@ func (d *Diff) Update(repo *git.Repository, hash string, file string, file_encou
 
 	d.text.Clear()
 	diff.ForEach(func(file git.DiffDelta, progress float64) (git.DiffForEachHunkCallback, error) {
-		file_encountered(file.NewFile.Path)
+		fileEncountered(file.NewFile.Path)
 		d.text.Append("file", file.NewFile.Path+"\n")
 		d.line.Add(0, 0)
 		return func(hunk git.DiffHunk) (git.DiffForEachLineCallback, error) {
@@ -106,7 +113,8 @@ func (d *Diff) Update(repo *git.Repository, hash string, file string, file_encou
 	d.line.Display()
 }
 
-func New() *Diff {
+//New returns a DiffView
+func New() *DiffView {
 	hbox := gtk.NewHBox(false, 0)
 	line := lineview.New()
 	text := richtext.New()
@@ -116,7 +124,7 @@ func New() *Diff {
 	text.AddStyle("delete", "background", "#ffaaaa")
 	hbox.PackStart(line, false, false, 0)
 	hbox.PackEnd(text, true, true, 0)
-	diff := &Diff{
+	diff := &DiffView{
 		hbox,
 		text,
 		line,

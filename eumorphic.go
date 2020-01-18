@@ -1,12 +1,12 @@
 package main
 
 import (
-	"eumorphic/diff"
+	"eumorphic/diffview"
 	"eumorphic/history"
 	"eumorphic/list"
+	"os"
 	"github.com/mattn/go-gtk/gtk"
 	"gopkg.in/libgit2/git2go.v24"
-	"os"
 )
 
 func main() {
@@ -37,7 +37,7 @@ func main() {
 	scroll.SetPolicy(gtk.POLICY_AUTOMATIC, gtk.POLICY_AUTOMATIC)
 	scroll.Add(files)
 	hbox.PackStart(scroll, false, false, 0)
-	diff := diff.New()
+	diff := diffview.New()
 	scroll = gtk.NewScrolledWindow(nil, nil)
 	scroll.SetPolicy(gtk.POLICY_AUTOMATIC, gtk.POLICY_AUTOMATIC)
 	scroll.AddWithViewPort(diff)
