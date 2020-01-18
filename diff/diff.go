@@ -5,11 +5,8 @@ import (
     "eumorphic/diff/richtext"
     "fmt"
     "github.com/mattn/go-gtk/gtk"
-    "gopkg.in/src-d/go-git.v4"
-    "gopkg.in/src-d/go-git.v4/plumbing"
-    "gopkg.in/src-d/go-git.v4/plumbing/format/diff"
-    "gopkg.in/src-d/go-git.v4/plumbing/object"
-    "strings"
+    "gopkg.in/libgit2/git2go.v24"
+    _ "strings"
 )
 
 type Diff struct {
@@ -19,63 +16,54 @@ type Diff struct {
 }
 
 func (d *Diff) Update(repo *git.Repository, hash string, file string, file_encountered func(key string)) {
-    var parent *object.Commit
-    var ctree, ptree *object.Tree
-    var patch *object.Patch
-    commit, err := repo.CommitObject(plumbing.NewHash(hash))
-    if err == nil { parent, err = commit.Parent(0) }
-    if err == nil { ctree,  err = commit.Tree() }
-    if err == nil { ptree,  err = parent.Tree() }
-    if err == nil { patch,  err = ptree.Patch(ctree) }
+    var commit, parent *git.Commit
+    var ctree, ptree *git.Tree
+    var options git.DiffOptions
+    var diff *git.Diff
+    oid, err := git.NewOid(hash)
+    if err == nil { commit, err = repo.LookupCommit(oid) }
+    if err == nil {
+        parent = commit.Parent(0)
+        ctree, err = commit.Tree()
+    }
+    if err == nil { ptree, err = parent.Tree() }
+    if err == nil { options, err = git.DefaultDiffOptions() }
+    if err == nil {
+        if file != "" {
+            options.Pathspec = []string{file}
+        }
+        diff,  err = repo.DiffTreeToTree(ptree, ctree, &options)
+    }
     if err != nil {
+        fmt.Println(err)
         return
+    }
+    styles := map[git.DiffLineType]string {
+        git.DiffLineAddition: "insert",
+        git.DiffLineDeletion: "delete",
+        git.DiffLineAddEOFNL: "insert",
+        git.DiffLineDelEOFNL: "delete",
     }
 
     d.text.Clear()
-    for _, fp := range patch.FilePatches() {
-        from, to := fp.Files()
-        file_key := ""
-        if from != nil && to != nil  {
-            if from.Path() != to.Path() {
-                file_key = fmt.Sprintf("~ %s => %s", from.Path(), to.Path())
-            } else {
-                file_key = "~ " + from.Path()
-            }
-        } else if from != nil {
-            file_key = "- " + from.Path()
-        } else if to != nil {
-            file_key = "+ " + to.Path()
-        } else {
-            file_key = "???";
-        }
-        if file != "" && file != file_key {
-            continue
-        }
-        d.text.Append("file", file_key)
-        file_encountered(file_key)
+    diff.ForEach(func(file git.DiffDelta, progress float64) (git.DiffForEachHunkCallback, error) {
+        file_encountered(file.NewFile.Path)
+        d.text.Append("file", file.NewFile.Path + "\n")
         d.line.Add(0, 0)
-        var ( oldline, newline = 0, 0 )
-        for _, chunk := range fp.Chunks() {
-            style := "normal"
-            for _, l := range strings.Split(chunk.Content(), "\n") {
-                switch chunk.Type() {
-                    case diff.Add:
-                        style = "insert"
-                        newline++
-                        d.line.Add(0, newline)
-                    case diff.Delete:
-                        style = "delete"
-                        oldline++
-                        d.line.Add(oldline, 0)
-                    default:
-                        oldline++
-                        newline++
-                        d.line.Add(oldline, newline)
+        return func(hunk git.DiffHunk) (git.DiffForEachLineCallback, error) {
+            d.text.Append("file", hunk.Header)
+            d.line.Add(0, 0)
+            return func(line git.DiffLine) error {
+                if style, ok := styles[line.Origin]; ok {
+                    d.text.Append(style, line.Content)
+                } else {
+                    d.text.Append("normal", line.Content)
                 }
-                d.text.Append(style, l)
-            }
-        }
-    }
+                d.line.Add(line.OldLineno, line.NewLineno)
+                return nil
+            }, nil
+        }, nil
+    }, git.DiffDetailLines)
     d.line.Display()
 }
 

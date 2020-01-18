@@ -4,10 +4,9 @@ import (
 	"eumorphic/diff"
 	"eumorphic/history"
 	"eumorphic/list"
-	"os"
-
 	"github.com/mattn/go-gtk/gtk"
-	"gopkg.in/src-d/go-git.v4"
+	"gopkg.in/libgit2/git2go.v24"
+	"os"
 )
 
 func main() {
@@ -22,7 +21,7 @@ func main() {
 	window.Connect("destroy", gtk.MainQuit)
 	window.SetSizeRequest(1100, 600)
 
-	repo, _ := git.PlainOpen(dir)
+	repo, _ := git.OpenRepository(dir)
 	vbox := gtk.NewVBox(true, 8)
 	hist := history.New()
 	hist.Refresh(repo)
