@@ -25,7 +25,7 @@ type History struct {
 }
 
 func (h *History) add(c *git.Commit) bool {
-	message := strings.ReplaceAll(c.Message(), "&", "&amp;")
+	message := strings.TrimSpace(strings.ReplaceAll(c.Message(), "&", "&amp;"))
 	hash := c.Id().String()
 	h.AddRow(map[int]string{
 		Hash:    hash,
